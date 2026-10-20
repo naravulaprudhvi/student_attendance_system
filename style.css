@@ -389,3 +389,74 @@ footer {
   font-size: 13px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* --- Responsive Utilities and Media Queries --- */
+
+@media (max-width: 768px) {
+  header {
+    flex-direction: column;
+    padding: 16px 12px !important;
+  }
+  header a.btn {
+    position: static !important;
+    transform: none !important;
+    margin-bottom: 12px !important;
+    width: auto !important;
+    align-self: center;
+  }
+  header span {
+    font-size: 18px;
+    text-align: center;
+  }
+  
+  .top-bar {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px;
+    padding: 16px !important;
+  }
+  .top-bar > div {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .dashboard-title {
+    font-size: 18px;
+    margin-top: 24px;
+    text-align: center;
+  }
+  
+  .option-box {
+    padding: 24px 16px !important;
+  }
+}
+
+@media (max-width: 576px) {
+  body {
+    font-size: 13px;
+  }
+  .card-body {
+    padding: 1.5rem !important;
+  }
+  .fc {
+    padding: 10px !important;
+  }
+  .fc .fc-toolbar {
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+  .table td, .table th {
+    padding: 8px !important;
+    font-size: 12px;
+  }
+  .appname {
+    font-size: 18px;
+    margin-top: 16px;
+    padding: 12px 0;
+  }
+}

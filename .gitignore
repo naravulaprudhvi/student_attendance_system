@@ -1,0 +1,8 @@
+# Large media files (exceeds GitHub 100MB limit)
+*.mp4
+Student_Attednance_System.mp4
+
+# Operating System Files
+Thumbs.db
+Desktop.ini
+.DS_Store
