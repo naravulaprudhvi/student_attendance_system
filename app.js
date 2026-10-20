@@ -1307,6 +1307,14 @@ function initAdminPage() {
 // Multiple Classes Support with Confirmation (No password required)
 let pendingSwitchClassId = null;
 
+function cleanupModalBackdrops() {
+  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('padding-right');
+  document.body.style.removeProperty('overflow');
+}
+window.cleanupModalBackdrops = cleanupModalBackdrops;
+
 async function switchTeacherClass(newClassId) {
   if (!newClassId) return;
   const currentClassId = localStorage.getItem('classid') || getQueryParam('classid');
@@ -1320,16 +1328,18 @@ async function switchTeacherClass(newClassId) {
   const currentName = currentClass ? `${currentClass.name || currentClass.id} (${currentClass.id})` : currentClassId;
 
   const modalEl = document.getElementById('switchClassModal');
-  if (modalEl && window.bootstrap) {
+  if (modalEl && window.bootstrap && typeof bootstrap.Modal !== 'undefined') {
     const curLabel = document.getElementById('switchCurrentClassLabel');
     const tgtLabel = document.getElementById('switchTargetClassLabel');
     if (curLabel) curLabel.textContent = currentName;
     if (tgtLabel) tgtLabel.textContent = targetName;
+
+    cleanupModalBackdrops();
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
   } else {
     // Standard confirm fallback (No password required)
-    const confirmed = confirm(`Confirm Class Switch:\n\nDo you want to switch your active section to "${targetName}"?`);
+    const confirmed = confirm(`Confirm Class Switch:\n\nDo you want to switch your active section from "${currentName}" to "${targetName}"?\n(No password required)`);
     if (confirmed) {
       await applyTeacherClassSwitch(newClassId);
     } else {
@@ -1342,10 +1352,19 @@ window.switchTeacherClass = switchTeacherClass;
 async function executeClassSwitch() {
   const modalEl = document.getElementById('switchClassModal');
   if (modalEl && window.bootstrap) {
-    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    try {
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+    } catch (e) {
+      console.warn("Modal hide error:", e);
+    }
   }
+  cleanupModalBackdrops();
+
   if (pendingSwitchClassId) {
-    await applyTeacherClassSwitch(pendingSwitchClassId);
+    const targetId = pendingSwitchClassId;
+    pendingSwitchClassId = null;
+    await applyTeacherClassSwitch(targetId);
   }
 }
 window.executeClassSwitch = executeClassSwitch;
@@ -1353,8 +1372,15 @@ window.executeClassSwitch = executeClassSwitch;
 function cancelClassSwitch() {
   const modalEl = document.getElementById('switchClassModal');
   if (modalEl && window.bootstrap) {
-    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    try {
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+    } catch (e) {
+      console.warn("Modal hide error:", e);
+    }
   }
+  cleanupModalBackdrops();
+
   const currentClassId = localStorage.getItem('classid') || getQueryParam('classid');
   const switcher = document.getElementById('teacherClassSwitcher');
   if (switcher && currentClassId) {
@@ -1365,6 +1391,7 @@ function cancelClassSwitch() {
 window.cancelClassSwitch = cancelClassSwitch;
 
 async function applyTeacherClassSwitch(newClassId) {
+  cleanupModalBackdrops();
   localStorage.setItem('classid', newClassId);
   const teacherId = localStorage.getItem('teacherid') || getQueryParam('teacherid');
   const newUrl = `teacherlogin.html?teacherid=${encodeURIComponent(teacherId)}&classid=${encodeURIComponent(newClassId)}`;

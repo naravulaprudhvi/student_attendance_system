@@ -806,6 +806,30 @@ footer.app-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* --- Flexible Class Switcher Select --- */
+.class-switcher-select {
+  width: auto !important;
+  min-width: 250px !important;
+  max-width: 440px !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+  background-color: #ffffff !important;
+  border: 1.5px solid var(--border-color) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 6px 36px 6px 12px !important;
+  color: var(--text-main) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.class-switcher-select:hover,
+.class-switcher-select:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15) !important;
+  outline: none;
+}
+
 /* --- Responsive Adjustments --- */
 @media (max-width: 768px) {
   header.app-header {
