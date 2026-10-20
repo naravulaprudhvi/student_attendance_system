@@ -2322,17 +2322,26 @@ function initStudentLoginPage() {
 
       const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
-        height: 540,
+        height: 'auto',
+        contentHeight: 'auto',
+        aspectRatio: window.innerWidth < 768 ? 1.05 : 1.6,
+        handleWindowResize: true,
+        expandRows: true,
+        dayMaxEvents: 3,
         initialDate: myAttendance.length > 0 ? myAttendance[0].date : new Date().toISOString().split('T')[0],
         locale: 'en',
         events: calendarEvents,
         headerToolbar: {
           left: 'prev,next today',
           center: 'title',
-          right: ''
+          right: 'dayGridMonth,listMonth'
         }
       });
       calendar.render();
+
+      window.addEventListener('resize', () => {
+        calendar.updateSize();
+      });
     }
   };
 
