@@ -27,10 +27,41 @@ const DEFAULT_PUBLIC_HOLIDAYS = [
 ];
 
 // Helper to check if a date is Sunday (Weekly Off)
-function isDateSunday(dateStr) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.getDay() === 0;
+function isDateSunday(dateInput) {
+  if (!dateInput) return false;
+  if (dateInput instanceof Date) {
+    return dateInput.getDay() === 0;
+  }
+  const dateStr = String(dateInput).slice(0, 10);
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const dt = new Date(y, m, d, 12, 0, 0);
+    return dt.getDay() === 0;
+  }
+  const dt = new Date(dateStr);
+  return dt.getDay() === 0;
+}
+
+// Helper to check if a date is Saturday (Explicitly regular working day)
+function isDateSaturday(dateInput) {
+  if (!dateInput) return false;
+  if (dateInput instanceof Date) {
+    return dateInput.getDay() === 6;
+  }
+  const dateStr = String(dateInput).slice(0, 10);
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const dt = new Date(y, m, d, 12, 0, 0);
+    return dt.getDay() === 6;
+  }
+  const dt = new Date(dateStr);
+  return dt.getDay() === 6;
 }
 
 // Check if a date is a holiday (Sunday, Public Holiday, or Declared Class Holiday)
@@ -74,11 +105,10 @@ async function seedDatabaseIfEmpty() {
     let daysBack = 1;
     let seededDays = 0;
     while (seededDays < 6 && daysBack < 14) {
-      const pastDate = new Date(today);
-      pastDate.setDate(today.getDate() - daysBack);
+      const pastDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysBack, 12, 0, 0);
       const dateStr = formatDate(pastDate);
 
-      // Skip Sundays when seeding attendance
+      // Skip Sundays when seeding attendance (Saturdays are regular working academic days)
       if (!isDateSunday(dateStr)) {
         await save('attendance', { classId: 'C101', studentId: 'S101', date: dateStr, status: Math.random() > 0.15 ? 'Present' : 'Absent', markedByAdmin: false });
         await save('attendance', { classId: 'C101', studentId: 'S102', date: dateStr, status: Math.random() > 0.25 ? 'Present' : 'Absent', markedByAdmin: false });
@@ -112,8 +142,8 @@ function handleLogout(e) {
 window.handleLogout = handleLogout;
 
 function goToReport() {
-  const teacherId = getQueryParam('teacherid') || localStorage.getItem('teacherid');
-  const classId = getQueryParam('classid') || localStorage.getItem('classid');
+  const teacherId = localStorage.getItem('teacherid') || getQueryParam('teacherid');
+  const classId = localStorage.getItem('classid') || getQueryParam('classid');
   if (!teacherId || !classId) {
     showAlert("Missing faculty or class context.", "warning");
     return;
@@ -259,7 +289,14 @@ function remove(store, key) {
 }
 
 function formatDate(date) {
-  return date.toISOString().slice(0, 10);
+  if (!date) return '';
+  if (typeof date === 'string') return date.slice(0, 10);
+  const dt = (date instanceof Date) ? date : new Date(date);
+  if (isNaN(dt.getTime())) return '';
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 async function addLog({ type, message, date = formatDate(new Date()), classId = '', details = {} }) {
@@ -1267,25 +1304,95 @@ function initAdminPage() {
 // 4. Teacher Dashboard Module (Multiple Classes Support)
 // ==========================================
 
+// Multiple Classes Support with Confirmation (No password required)
+let pendingSwitchClassId = null;
+
 async function switchTeacherClass(newClassId) {
   if (!newClassId) return;
-  localStorage.setItem('classid', newClassId);
-  const teacherId = localStorage.getItem('teacherid');
-  showAlert(`Active section switched to ${newClassId}`, "info");
-  await loadTeacherInfo();
+  const currentClassId = localStorage.getItem('classid') || getQueryParam('classid');
+  if (newClassId === currentClassId) return;
+
+  pendingSwitchClassId = newClassId;
+  const classesList = await getAll('classes');
+  const targetClass = classesList.find(c => c.id === newClassId);
+  const currentClass = classesList.find(c => c.id === currentClassId);
+  const targetName = targetClass ? `${targetClass.name || targetClass.id} (${targetClass.id})` : newClassId;
+  const currentName = currentClass ? `${currentClass.name || currentClass.id} (${currentClass.id})` : currentClassId;
+
+  const modalEl = document.getElementById('switchClassModal');
+  if (modalEl && window.bootstrap) {
+    const curLabel = document.getElementById('switchCurrentClassLabel');
+    const tgtLabel = document.getElementById('switchTargetClassLabel');
+    if (curLabel) curLabel.textContent = currentName;
+    if (tgtLabel) tgtLabel.textContent = targetName;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  } else {
+    // Standard confirm fallback (No password required)
+    const confirmed = confirm(`Confirm Class Switch:\n\nDo you want to switch your active section to "${targetName}"?`);
+    if (confirmed) {
+      await applyTeacherClassSwitch(newClassId);
+    } else {
+      cancelClassSwitch();
+    }
+  }
 }
 window.switchTeacherClass = switchTeacherClass;
 
+async function executeClassSwitch() {
+  const modalEl = document.getElementById('switchClassModal');
+  if (modalEl && window.bootstrap) {
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+  }
+  if (pendingSwitchClassId) {
+    await applyTeacherClassSwitch(pendingSwitchClassId);
+  }
+}
+window.executeClassSwitch = executeClassSwitch;
+
+function cancelClassSwitch() {
+  const modalEl = document.getElementById('switchClassModal');
+  if (modalEl && window.bootstrap) {
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+  }
+  const currentClassId = localStorage.getItem('classid') || getQueryParam('classid');
+  const switcher = document.getElementById('teacherClassSwitcher');
+  if (switcher && currentClassId) {
+    switcher.value = currentClassId;
+  }
+  pendingSwitchClassId = null;
+}
+window.cancelClassSwitch = cancelClassSwitch;
+
+async function applyTeacherClassSwitch(newClassId) {
+  localStorage.setItem('classid', newClassId);
+  const teacherId = localStorage.getItem('teacherid') || getQueryParam('teacherid');
+  const newUrl = `teacherlogin.html?teacherid=${encodeURIComponent(teacherId)}&classid=${encodeURIComponent(newClassId)}`;
+  window.history.replaceState(null, '', newUrl);
+
+  const classesList = await getAll('classes');
+  const targetClass = classesList.find(c => c.id === newClassId);
+  const className = targetClass ? (targetClass.name || targetClass.id) : newClassId;
+
+  showAlert(`Active section switched to ${className} (${newClassId})`, "success");
+  await loadTeacherInfo();
+  pendingSwitchClassId = null;
+}
+
 async function loadTeacherInfo() {
   testDatabaseConnection();
-  let teacherId = getQueryParam('teacherid') || localStorage.getItem('teacherid');
-  let classId = getQueryParam('classid') || localStorage.getItem('classid');
+  let teacherId = localStorage.getItem('teacherid') || getQueryParam('teacherid');
+  let classId = localStorage.getItem('classid') || getQueryParam('classid');
 
   if (!teacherId || !classId) {
     showAlert("Missing faculty or section context. Please login.", "warning");
     window.location.href = "login.html";
     return;
   }
+
+  // Keep storage in sync
+  localStorage.setItem('teacherid', teacherId);
+  localStorage.setItem('classid', classId);
 
   const teachers = await getAll('teachers');
   const teacher = teachers.find(t => (t.teacherid || t.id) === teacherId);
@@ -1300,6 +1407,7 @@ async function loadTeacherInfo() {
     classSwitcher.innerHTML = classesList.map(c =>
       `<option value="${c.id}"${c.id === classId ? " selected" : ""}>${c.name || c.id} (${c.id})</option>`
     ).join('');
+    classSwitcher.value = classId;
   }
 
   const userEl = document.getElementById('username');
@@ -1339,8 +1447,8 @@ async function loadTeacherInfo() {
 }
 
 function goToAttendance() {
-  let teacherId = getQueryParam('teacherid') || localStorage.getItem('teacherid');
-  let classId = getQueryParam('classid') || localStorage.getItem('classid');
+  let teacherId = localStorage.getItem('teacherid') || getQueryParam('teacherid');
+  let classId = localStorage.getItem('classid') || getQueryParam('classid');
   if (!teacherId || !classId) {
     showAlert("Missing faculty credentials.", "warning");
     return;
@@ -1380,9 +1488,26 @@ let classStudents = [];
 
 async function switchAttendanceClass(newClassId) {
   if (!newClassId) return;
+  const prevClassId = currentClassId;
+  if (newClassId === prevClassId) return;
+
+  const classesList = await getAll('classes');
+  const targetClass = classesList.find(c => c.id === newClassId);
+  const className = targetClass ? (targetClass.name || targetClass.id) : newClassId;
+
+  const confirmed = confirm(`Confirm Class Switch:\n\nDo you want to switch attendance roster to "${className} (${newClassId})"?`);
+  if (!confirmed) {
+    const switcher = document.getElementById('attendanceClassSwitcher');
+    if (switcher) switcher.value = prevClassId;
+    return;
+  }
+
   localStorage.setItem('classid', newClassId);
   currentClassId = newClassId;
-  showAlert(`Switched attendance roster to ${newClassId}`, "info");
+  const newUrl = `attendance.html?teacherid=${encodeURIComponent(currentTeacherId)}&classid=${encodeURIComponent(newClassId)}`;
+  window.history.replaceState(null, '', newUrl);
+
+  showAlert(`Switched attendance roster to ${className} (${newClassId})`, "info");
   await initAttendancePage();
 }
 window.switchAttendanceClass = switchAttendanceClass;
@@ -1796,8 +1921,26 @@ function getClassId() {
 
 async function switchReportClass(newClassId) {
   if (!newClassId) return;
+  const prevClassId = localStorage.getItem('classid') || getQueryParam('classid');
+  if (newClassId === prevClassId) return;
+
+  const classesList = await getAll('classes');
+  const targetClass = classesList.find(c => c.id === newClassId);
+  const className = targetClass ? (targetClass.name || targetClass.id) : newClassId;
+
+  const confirmed = confirm(`Confirm Class Switch:\n\nDo you want to switch report analytics to "${className} (${newClassId})"?`);
+  if (!confirmed) {
+    const switcher = document.getElementById('reportClassSwitcher');
+    if (switcher) switcher.value = prevClassId;
+    return;
+  }
+
   localStorage.setItem('classid', newClassId);
-  showAlert(`Viewing report analytics for ${newClassId}`, "info");
+  const teacherId = localStorage.getItem('teacherid') || getQueryParam('teacherid');
+  const newUrl = `report.html?teacherid=${encodeURIComponent(teacherId)}&classid=${encodeURIComponent(newClassId)}`;
+  window.history.replaceState(null, '', newUrl);
+
+  showAlert(`Viewing report analytics for ${className} (${newClassId})`, "info");
   await initReportPage();
 }
 window.switchReportClass = switchReportClass;
@@ -2273,7 +2416,7 @@ function initStudentLoginPage() {
       `;
     }
 
-    const calendarEvents = [];
+    let calendarEvents = [];
 
     // Add Present / Absent Events
     for (const date in attendanceByDate) {
@@ -2286,23 +2429,6 @@ function initStudentLoginPage() {
         backgroundColor: color,
         borderColor: color
       });
-    }
-
-    // Add Default Sunday Events for current and recent months
-    const today = new Date();
-    const startDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-    const endDate = new Date(today.getFullYear(), today.getMonth() + 2, 28);
-    for (let cur = new Date(startDate); cur <= endDate; cur.setDate(cur.getDate() + 1)) {
-      if (cur.getDay() === 0) {
-        const sunStr = formatDate(cur);
-        calendarEvents.push({
-          title: '☀️ Sunday Off',
-          start: sunStr,
-          allDay: true,
-          backgroundColor: '#64748b',
-          borderColor: '#64748b'
-        });
-      }
     }
 
     // Add Declared & Public Holidays Events
@@ -2320,28 +2446,43 @@ function initStudentLoginPage() {
     if (calendarEl) {
       calendarEl.innerHTML = '';
 
-      const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        height: 'auto',
-        contentHeight: 'auto',
-        aspectRatio: window.innerWidth < 768 ? 1.05 : 1.6,
-        handleWindowResize: true,
-        expandRows: true,
-        dayMaxEvents: 3,
-        initialDate: myAttendance.length > 0 ? myAttendance[0].date : new Date().toISOString().split('T')[0],
-        locale: 'en',
-        events: calendarEvents,
-        headerToolbar: {
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,listMonth'
+      try {
+        if (typeof FullCalendar === 'undefined') {
+          console.error("FullCalendar library is not available.");
+          calendarEl.innerHTML = '<div class="alert alert-warning">Calendar engine is loading or unavailable offline.</div>';
+          return;
         }
-      });
-      calendar.render();
 
-      window.addEventListener('resize', () => {
-        calendar.updateSize();
-      });
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'dayGridMonth',
+          height: 'auto',
+          contentHeight: 'auto',
+          aspectRatio: window.innerWidth < 768 ? 1.05 : 1.6,
+          handleWindowResize: true,
+          expandRows: true,
+          dayMaxEvents: 3,
+          initialDate: myAttendance.length > 0 ? myAttendance[0].date : formatDate(new Date()),
+          locale: 'en',
+          events: calendarEvents,
+          headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,listMonth'
+          }
+        });
+        calendar.render();
+
+        setTimeout(() => {
+          calendar.updateSize();
+        }, 100);
+
+        window.addEventListener('resize', () => {
+          calendar.updateSize();
+        });
+      } catch (calErr) {
+        console.error("Error initializing FullCalendar:", calErr);
+        calendarEl.innerHTML = `<div class="alert alert-warning">Failed to load calendar schedule: ${calErr.message}</div>`;
+      }
     }
   };
 

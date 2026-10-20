@@ -6,6 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Live Attendance Recording - Student Attendance System</title>
   <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const tId = urlParams.get('teacherid');
+    const cId = urlParams.get('classid');
+    if (tId) localStorage.setItem('teacherid', tId);
+    if (cId) localStorage.setItem('classid', cId);
     if (!localStorage.getItem('teacherid') || !localStorage.getItem('classid')) {
       window.location.href = 'login.html';
     }
