@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Student Portal</title>
+  <title>Student Portal - Student Attendance System</title>
   <script>
     if (!localStorage.getItem('studentid')) {
       window.location.href = 'login.html';
@@ -12,75 +12,110 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-  <header class="d-flex align-items-center justify-content-center gap-2">
-    <span>Student Attendance System</span>
-    <span class="badge bg-secondary" id="dbStatusBadge" style="font-size: 0.5em;"><i class="bi bi-database"></i> Checking DB...</span>
-    <script>
-      (function() {
-        try {
-          const testKey = '__db_test_key__';
-          localStorage.setItem(testKey, 'test_val');
-          const val = localStorage.getItem(testKey);
-          localStorage.removeItem(testKey);
-          const badge = document.getElementById('dbStatusBadge');
-          if (badge && val === 'test_val') {
-            badge.className = 'badge bg-success';
-            badge.innerHTML = '<i class="bi bi-database-check"></i> DB Connected';
-          }
-        } catch (e) {
-          const badge = document.getElementById('dbStatusBadge');
-          if (badge) {
-            badge.className = 'badge bg-danger';
-            badge.innerHTML = '<i class="bi bi-database-x"></i> DB Disconnected';
-          }
-        }
-      })();
-    </script>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="d-flex align-items-center gap-3">
+      <a href="studentlogin.html" class="brand-badge">
+        <div class="brand-icon">
+          <i class="bi bi-backpack4-fill"></i>
+        </div>
+        <div>
+          <span>Student Attendance System</span>
+          <div style="font-size: 0.72rem; opacity: 0.75; font-weight: 500;">Student Academic Portal</div>
+        </div>
+      </a>
+      <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1 ms-2">
+        <i class="bi bi-person-fill"></i> Scholar
+      </span>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <span class="system-status-pill" id="dbStatusBadge">
+        <span class="status-dot"></span>
+        <span id="dbStatusText">Real-Time Sync Active</span>
+      </span>
+      <a href="#" onclick="handleLogout(event)" class="btn btn-sm btn-danger">
+        <i class="bi bi-box-arrow-left"></i> <span class="d-none d-md-inline">Logout</span>
+      </a>
+    </div>
   </header>
 
+  <!-- Top Bar -->
   <div class="top-bar">
-    <div>
-      <strong>Class ID:</strong> <span id="class-id">--</span>
+    <div class="d-flex align-items-center gap-3">
+      <div>
+        <span class="text-muted"><i class="bi bi-building text-secondary"></i> Enrolled Class:</span>
+        <strong id="class-id" class="ms-1">--</strong>
+      </div>
     </div>
     <div class="d-flex align-items-center gap-3">
       <div id="date-time"></div>
-      <a href="#" onclick="handleLogout(event)" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-left"></i> Logout</a>
     </div>
   </div>
 
-  <div class="container mt-4">
+  <main class="container my-4">
+
+    <!-- Search Row (Fallback) -->
     <div class="row justify-content-center mb-4" id="searchRow">
       <div class="col-md-6">
         <div class="input-group shadow-sm">
-          <span class="input-group-text bg-primary text-white">
-            <i class="bi bi-search"></i>
+          <span class="input-group-text bg-white border-end-0">
+            <i class="bi bi-search text-muted"></i>
           </span>
-          <input type="text" id="studentIdInput" class="form-control" placeholder="Enter Student ID">
-          <button id="searchBtn" class="btn btn-primary">Search</button>
+          <input type="text" id="studentIdInput" class="form-control border-start-0 ps-0" placeholder="Enter Student ID (e.g. S101)">
+          <button id="searchBtn" class="btn btn-primary">Search Record</button>
         </div>
       </div>
     </div>
 
-    <div id="studentDetails" class="d-flex justify-content-center mb-4"></div>
+    <!-- Student Profile & Real-time Stats Card -->
+    <div id="studentDetails" class="mb-4"></div>
 
-    <div class="my-5">
-      <div id="calendar" class="mt-3"></div>
+    <!-- Calendar Representation Container -->
+    <div class="card p-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h4 class="fw-bold mb-1"><i class="bi bi-calendar3 text-primary me-2"></i>Attendance Calendar Schedule</h4>
+          <p class="text-muted small mb-0">High-performance monthly visual representation of your attendance track</p>
+        </div>
+        <div class="d-flex align-items-center gap-3 small fw-semibold flex-wrap">
+          <span class="d-inline-flex align-items-center gap-1">
+            <span class="badge bg-success rounded-circle p-1"> </span> Present
+          </span>
+          <span class="d-inline-flex align-items-center gap-1">
+            <span class="badge bg-danger rounded-circle p-1"> </span> Absent
+          </span>
+          <span class="d-inline-flex align-items-center gap-1">
+            <span class="badge bg-secondary rounded-circle p-1"> </span> Sunday Off
+          </span>
+          <span class="d-inline-flex align-items-center gap-1">
+            <span class="badge bg-warning rounded-circle p-1"> </span> Public Holiday
+          </span>
+        </div>
+      </div>
+
+      <div id="calendar" class="mt-2"></div>
     </div>
-  </div>
 
-  <footer class="text-center">
-    &copy; 2025 Student Attendance System. All rights reserved.
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="container">
+      &copy; 2026 Student Attendance System • High-Performance Real-Time Platform
+    </div>
   </footer>
 
-  <!-- JS libraries -->
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <script src="app.js"></script>
